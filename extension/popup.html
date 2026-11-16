@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Copilot Speed</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header><h1>Copilot Speed</h1><p id="site">接続を確認しています…</p></header>
+  <main>
+    <section class="status-card" aria-live="polite"><span class="dot" id="dot"></span><div><h2 id="state">確認中</h2><p id="detail">Copilot のタブを開いてください。</p></div></section>
+    <label class="control"><strong>高速化を有効にする</strong><input id="optimization" type="checkbox" role="switch" disabled></label>
+    <p class="hint">変更はページの再読み込み後に反映されます。</p>
+    <p id="message" role="status"></p>
+  </main>
+  <footer id="version"></footer>
+  <script src="popup.js"></script>
+</body>
+</html>
