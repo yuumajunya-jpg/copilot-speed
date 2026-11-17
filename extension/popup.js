@@ -1,6 +1,7 @@
 "use strict";
 const $ = id => document.getElementById(id);
 let tabId, url, ready = false, busy = false, revision = 0, awaitingReload = false;
+let diagnosticReport = null;
 function showState(title, detail, tone = "") {
   $("state").textContent = title;
   $("detail").textContent = detail;
@@ -57,6 +58,30 @@ $("optimization").addEventListener("change", async () => {
   } catch (error) { $("message").textContent = error.message; }
   finally { busy = false; await refresh(); }
 });
+$("diagnose").addEventListener("click", async () => {
+  $("diagnose").disabled = true;
+  $("diagnose").textContent = "診断中…";
+  try {
+    const response = await chrome.runtime.sendMessage({type:"diagnose",tabId});
+    if (!response?.ok) throw new Error("診断できませんでした。拡張機能を開き直してください。");
+    diagnosticReport = response.report;
+    $("diagnosis-code").textContent = `診断結果 ${diagnosticReport.code}`;
+    $("diagnosis-summary").textContent = diagnosticReport.summary;
+    $("diagnosis-details").textContent = JSON.stringify(diagnosticReport,null,2);
+    $("diagnosis").hidden = false;
+  } catch (error) { $("message").textContent = error.message; }
+  finally { $("diagnose").disabled = false; $("diagnose").textContent = "再診断"; }
+});
+$("save-diagnosis").addEventListener("click", () => {
+  if (!diagnosticReport) return;
+  const blob = new Blob([JSON.stringify(diagnosticReport,null,2)],{type:"application/json"});
+  const resource = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = resource;
+  link.download = "copilot-speed-diagnosis.json";
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(resource),1000);
+});
 async function initialize() {
   try {
     const [tab] = await chrome.tabs.query({ active:true, currentWindow:true });
@@ -69,6 +94,7 @@ async function initialize() {
     tabId = tab.id;
     $("site").textContent = new URL(url).hostname;
     ready = true;
+    $("diagnose").disabled = false;
     await refresh();
   } catch { showState("接続できません", "対象ページを開き直してください。", "warning"); }
 }

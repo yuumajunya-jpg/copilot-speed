@@ -13,17 +13,17 @@ function mainHarness() {
   const window = { addEventListener(type, callback) { listeners[type] = callback; }, postMessage(message) { messages.push(message); } };
   const ctx = vm.createContext({ window, location:{origin:"https://copilot.com"},
     document:{currentScript:{src:"https://res.public.onecdn.static.microsoft/midgard/versionless-v2/main.vendors.ed520e7e.js"}},
-    performance, TextEncoder,
+    performance, TextEncoder, URL,
     setTimeout(fn) { const id=++timerId; timers.set(id,fn); return id; }, clearTimeout(id) { timers.delete(id); }
   });
   function load() {
     for (const file of ["lib/sha256.js","lib/registry.js","main.js"]) vm.runInContext(source(file),ctx,{filename:file});
   }
-  function status() {
-    listeners.message({source:window,origin:"https://copilot.com",data:{channel:"copilot-latency-lab-v1",direction:"extension",type:"probe",nonce:"a".repeat(32)}});
+  function status(type = "probe") {
+    listeners.message({source:window,origin:"https://copilot.com",data:{channel:"copilot-latency-lab-v1",direction:"extension",type,nonce:"a".repeat(32)}});
     return messages.at(-1);
   }
-  return {ctx,load,status,timers,run:code=>vm.runInContext(code,ctx)};
+  return {ctx,load,status,diagnose:()=>status("diagnose"),timers,run:code=>vm.runInContext(code,ctx)};
 }
 function registryFactory() {
   const ctx = vm.createContext({ performance });

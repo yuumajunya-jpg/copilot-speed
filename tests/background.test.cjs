@@ -5,19 +5,22 @@ function harness(){
  let listener,installed,removed,added;const scripts=new Map(),storage={};let failSave=false,failUpdate=false;
  const manifest=JSON.parse(source("manifest.json"));
  const permissions=new Set(["https://copilot.com/*","https://copilot.microsoft.com/*","https://m365.cloud.microsoft/*"]);
+ let collected=0;
+ const tabs=new Map([[1,{id:1,url:"https://copilot.com/chat?private=SECRET_QUERY"}]]);
  const chrome={runtime:{id:"test",getURL:file=>`chrome-extension://test/${file}`,getManifest:()=>structuredClone(manifest),
   onInstalled:{addListener(fn){installed=fn;}},onStartup:{addListener(){}},onMessage:{addListener(fn){listener=fn;}}},
   storage:{local:{async get(){return structuredClone(storage);},async set(value){if(failSave)throw Error("save failed");Object.assign(storage,structuredClone(value));},async remove(keys){for(const key of [].concat(keys))delete storage[key];}}},
   permissions:{async contains({origins}){return origins.every(origin=>permissions.has(origin));},onAdded:{addListener(fn){added=fn;}},onRemoved:{addListener(fn){removed=fn;}}},
-  scripting:{async getRegisteredContentScripts({ids}={}){return [...scripts.values()].filter(s=>!ids||ids.includes(s.id));},
+  tabs:{async get(id){if(!tabs.has(id))throw Error("tab missing");return tabs.get(id);},async sendMessage(){return{enabled:true,main:{state:"unsupported",reason:"target-not-observed",inspection:null}};}},
+  scripting:{async executeScript(){collected++;return[{result:{readyState:"complete",loaders:[],scripts:[],scriptCount:0,frameCount:0,frameOrigins:[]}}];},async getRegisteredContentScripts({ids}={}){return [...scripts.values()].filter(s=>!ids||ids.includes(s.id));},
    async registerContentScripts(values){for(const s of values){if(scripts.has(s.id))throw Error("duplicate");scripts.set(s.id,s);}},
    async updateContentScripts(values){if(failUpdate){failUpdate=false;throw Error("update failed");}for(const s of values)scripts.set(s.id,s);},
    async unregisterContentScripts({ids}){ids.forEach(id=>scripts.delete(id));}}};
- const ctx=vm.createContext({chrome,console,URL,importScripts(file){vm.runInContext(source(file),ctx);}});
+ const ctx=vm.createContext({chrome,console,URL,importScripts(...files){for(const file of files)vm.runInContext(source(file),ctx);}});
  vm.runInContext(source("background.js"),ctx);
  const sender={id:"test",url:"chrome-extension://test/popup.html"};
  const send=(message,from=sender)=>new Promise(resolve=>{const async=listener(message,from,resolve);if(!async)resolve(undefined);});
- return{send,manifest,scripts,storage,permissions,failSave(){failSave=true;},failUpdate(){failUpdate=true;},installed:()=>installed(),removed:()=>removed(),added:()=>added()};
+ return{send,manifest,scripts,storage,permissions,tabs,collected:()=>collected,failSave(){failSave=true;},failUpdate(){failUpdate=true;},installed:()=>installed(),removed:()=>removed(),added:()=>added()};
 }
 const tick=()=>new Promise(setImmediate);
 const enable=(h,url="https://copilot.com/",enabled=true)=>h.send({type:"set-optimization",url,enabled});
@@ -84,4 +87,16 @@ test("patterns cannot be changed through messages or stored UI settings",async()
  assert.equal(await h.send({type:"set-targets",patterns:[]},{id:"test",url:"chrome-extension://test/options.html"}),undefined);
  const state=await h.send({type:"page-settings",url:"https://copilot.com/chat"});assert.equal(state.matched.length,1);assert.equal(state.hasPermission,true);assert.equal(state.enabled,false);
  assert.equal((await h.send({type:"page-settings",url:"https://evil.example/"})).matched.length,0);
+});
+test("popup diagnostic reads tab's actual origin, excludes query, and is on demand",async()=>{
+ const h=harness();await enable(h);assert.equal(h.collected(),0);
+ const result=await h.send({type:"diagnose",tabId:1,url:"https://evil.example/"});
+ assert.equal(result.ok,true);assert.equal(result.report.code,"D03");assert.equal(h.collected(),1);
+ assert.equal(result.report.origin,"https://copilot.com");assert.equal(JSON.stringify(result.report).includes("SECRET_QUERY"),false);
+ assert.equal(await h.send({type:"diagnose",tabId:1},{id:"test",tab:{id:1},frameId:0,url:"https://copilot.com/"}),undefined);
+});
+test("diagnostic does not inspect pages outside configured hosts or without access",async()=>{
+ const h=harness();h.tabs.set(2,{id:2,url:"https://evil.example/"});
+ assert.equal((await h.send({type:"diagnose",tabId:2})).report.code,"D07");assert.equal(h.collected(),0);
+ h.permissions.delete("https://copilot.com/*");assert.equal((await h.send({type:"diagnose",tabId:1})).report.code,"D06");assert.equal(h.collected(),0);
 });

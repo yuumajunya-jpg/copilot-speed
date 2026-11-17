@@ -1,11 +1,32 @@
 "use strict";
-importScripts("lib/targets.js");
+importScripts("lib/targets.js", "lib/status.js", "lib/diagnostics.js");
 const { settingsFrom, findMatches, parsePattern } = globalThis.CopilotSpeedTargets;
 let queue = Promise.resolve();
 const readSettings = async () => settingsFrom(
   await chrome.storage.local.get(["enabledPatterns", "enabledOrigins"]),
   chrome.runtime.getManifest().host_permissions ?? []
 );
+async function pageSettings(settings, url) {
+  const matched = findMatches(settings, url);
+  return { matched, enabled:matched.some(pattern => settings.enabledPatterns[pattern]),
+    hasPermission:matched.length > 0 && (await permitted(matched)).length === matched.length };
+}
+async function diagnose(settings, tabId) {
+  if (!Number.isSafeInteger(tabId) || tabId < 0) throw new Error("診断するタブを確認できませんでした。");
+  const tab = await chrome.tabs.get(tabId);
+  const target = await pageSettings(settings,tab.url);
+  let page = null, environment = null;
+  if (target.matched.length && target.hasPermission) {
+    const result = await Promise.allSettled([
+      chrome.tabs.sendMessage(tabId,{type:"diagnose"}),
+      chrome.scripting.executeScript({target:{tabId},world:"MAIN",func:globalThis.CopilotSpeedDiagnostics.collectEnvironment})
+    ]);
+    if (result[0].status === "fulfilled") page = result[0].value ?? null;
+    if (result[1].status === "fulfilled") environment = result[1].value[0]?.result ?? null;
+  }
+  return globalThis.CopilotSpeedDiagnostics.buildReport({version:chrome.runtime.getManifest().version,
+    url:tab.url,settings:target,page,environment});
+}
 function enqueue(work) {
   const task = queue.then(work);
   queue = task.catch(() => {});
@@ -65,10 +86,9 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       return { ok:true };
     }
     if (popup && message?.type === "page-settings") {
-      const matched = findMatches(settings, message.url);
-      return { ok:true, matched, enabled:matched.some(pattern => settings.enabledPatterns[pattern]),
-        hasPermission:matched.length > 0 && (await permitted(matched)).length === matched.length };
+      return { ok:true, ...await pageSettings(settings,message.url) };
     }
+    if (popup && message?.type === "diagnose") return {ok:true,report:await diagnose(settings,message.tabId)};
     if (popup && message?.type === "set-optimization" && typeof message.enabled === "boolean") {
       const matched = findMatches(settings, message.url);
       if (!matched.length || (await permitted(matched)).length !== matched.length) return { ok:false, error:"対象 URL の設定とアクセス許可を確認してください。" };

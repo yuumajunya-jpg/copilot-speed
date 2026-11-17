@@ -13,6 +13,13 @@
     <label class="control"><strong>高速化を有効にする</strong><input id="optimization" type="checkbox" role="switch" disabled></label>
     <p class="hint">変更はページの再読み込み後に反映されます。</p>
     <p id="message" role="status"></p>
+    <button id="diagnose" type="button" disabled>診断</button>
+    <section id="diagnosis" hidden aria-live="polite">
+      <h2 id="diagnosis-code"></h2>
+      <p id="diagnosis-summary"></p>
+      <details><summary>詳細</summary><pre id="diagnosis-details"></pre></details>
+      <button id="save-diagnosis" type="button">結果を保存</button>
+    </section>
   </main>
   <footer id="version"></footer>
   <script src="popup.js"></script>

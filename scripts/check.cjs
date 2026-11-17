@@ -14,7 +14,7 @@ function walk(dir) {
 }
 walk(root);
 for (const file of [manifest.background.service_worker, manifest.action.default_popup,
-  ...(manifest.content_scripts ?? []).flatMap(s => s.js), "lib/targets.js", "lib/status.js", "content.js",
+  ...(manifest.content_scripts ?? []).flatMap(s => s.js), "lib/targets.js", "lib/status.js", "lib/diagnostics.js", "content.js",
   "lib/sha256.js", "lib/registry.js", "main.js", "popup.css", "popup.js"]) {
   if (!fs.existsSync(path.join(root,file))) throw new Error(`Missing: ${file}`);
 }

@@ -2,12 +2,13 @@
 (() => {
   if (globalThis.__copilotLatencyContent) return;
   globalThis.__copilotLatencyContent = true;
-  const { validateMain } = globalThis.CopilotSpeedStatus;
+  const { validateMain, validateDiagnostic } = globalThis.CopilotSpeedStatus;
   const { settingsFrom, findMatches } = globalThis.CopilotSpeedTargets;
   const origin = location.origin;
   const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2,"0")).join("");
   const configuredPatterns = chrome.runtime.getManifest().host_permissions ?? [];
   let settings = settingsFrom({}, configuredPatterns), main = null, stopping = false;
+  const diagnosticRequests = new Set();
   const enabled = () => findMatches(settings,location.href).some(pattern => settings.enabledPatterns[pattern]);
   function probe() {
     window.postMessage({ channel:"copilot-latency-lab-v1", direction:"extension", type:"probe", nonce }, origin);
@@ -23,11 +24,26 @@
         m.direction !== "main" || m.nonce !== nonce) return;
     const validated = validateMain(m);
     if (validated) { main = validated; stopAfterError(); }
+    const diagnostic = validateDiagnostic(m);
+    if (diagnostic) for (const resolve of [...diagnosticRequests]) resolve(diagnostic);
   });
   chrome.runtime.onMessage.addListener((message, sender, respond) => {
-    if (sender.id !== chrome.runtime.id || message?.type !== "status") return;
-    probe();
-    respond({ enabled:enabled(), main });
+    if (sender.id !== chrome.runtime.id) return;
+    if (message?.type === "status") {
+      probe();
+      respond({ enabled:enabled(), main });
+    } else if (message?.type === "diagnose") {
+      let timer;
+      const finish = diagnostic => {
+        clearTimeout(timer);
+        diagnosticRequests.delete(finish);
+        respond({ enabled:enabled(), main:diagnostic ?? main });
+      };
+      diagnosticRequests.add(finish);
+      timer = setTimeout(() => finish(null),300);
+      window.postMessage({ channel:"copilot-latency-lab-v1", direction:"extension", type:"diagnose", nonce }, origin);
+      return true;
+    }
   });
   async function refreshSettings() {
     const storage = await chrome.storage.local.get("enabledPatterns");

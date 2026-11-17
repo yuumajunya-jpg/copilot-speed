@@ -13,12 +13,14 @@
   const source = Function.prototype.toString;
   const registries = new WeakSet();
   let state = "waiting", reason = "awaiting-chunk", timer, lastNonce = null;
+  let inspection = null;
   const hookedArrays = new Map();
   let current, prior;
 
-  function send(nonce) {
+  function send(nonce, diagnostic = false) {
     window.postMessage({ channel: "copilot-latency-lab-v1", direction: "main", nonce,
-      state, reason, adapter: "fluent-context-ed520e7e-v1"
+      state, reason, adapter: "fluent-context-ed520e7e-v1",
+      ...(diagnostic ? { diagnostic:true, inspection } : {})
     }, location.origin);
   }
   window.addEventListener("message", event => {
@@ -27,6 +29,7 @@
         m.channel !== "copilot-latency-lab-v1" || m.direction !== "extension" ||
         !/^[a-f0-9]{32}$/.test(m.nonce)) return;
     if (m.type === "probe") { lastNonce = m.nonce; send(m.nonce); }
+    else if (m.type === "diagnose") send(m.nonce, true);
   });
 
   function guard(fn) {
@@ -141,13 +144,27 @@
     const modules = chunk[1];
     if (!(PROVIDER in modules) && !(CONSUMER in modules)) return chunk;
     const src = document.currentScript?.src;
+    let scriptHost = null, scriptFile = null;
+    try {
+      const url = new URL(src);
+      if (url.protocol === "https:") {
+        scriptHost = url.hostname.slice(0,253);
+        scriptFile = url.pathname.split("/").pop().replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,120);
+      }
+    } catch { /* Missing or inline script. */ }
+    inspection = { scriptHost, scriptFile, modules:{} };
+    for (const id of [PROVIDER, CONSUMER]) {
+      const present = typeof modules[id] === "function";
+      const body = present ? source.call(modules[id]) : null;
+      const hash = body !== null && body.length <= 8192 ? sha256(body) : null;
+      inspection.modules[id] = { present, hash, matches:hash === EXPECTED[id] };
+    }
     if (src !== "https://res.public.onecdn.static.microsoft/midgard/versionless-v2/main.vendors.ed520e7e.js") {
       finish("unsupported", "script-url-mismatch");
       return chunk;
     }
     for (const id of [PROVIDER, CONSUMER]) {
-      if (typeof modules[id] !== "function" || source.call(modules[id]).length > 8192 ||
-          sha256(source.call(modules[id])) !== EXPECTED[id]) {
+      if (!inspection.modules[id].matches) {
         finish("unsupported", "factory-mismatch");
         return chunk;
       }

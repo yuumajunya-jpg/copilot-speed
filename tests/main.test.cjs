@@ -70,6 +70,18 @@ test("one changed factory prevents either module from being replaced",{skip:!ven
   assert.equal(h.status().reason,"factory-mismatch");
   assert.equal(h.ctx[KEY][0],altered);
 });
+test("diagnostic exposes only metadata and hashes, including script URL mismatch",{skip:!vendor},()=>{
+ const h=mainHarness();h.load();h.run(`globalThis.${KEY}=[]`);
+ h.ctx.document.currentScript.src="https://example.com/private/path/main.vendors.NEW.js?token=SECRET_QUERY#private";
+ h.ctx[KEY].push(vendor);
+ const status=h.status();assert.equal(Object.hasOwn(status,"inspection"),false);
+ const result=h.diagnose();assert.equal(result.reason,"script-url-mismatch");assert.equal(result.diagnostic,true);
+ assert.equal(result.inspection.scriptFile,"main.vendors.NEW.js");assert.equal(result.inspection.scriptHost,"example.com");
+ assert.equal(result.inspection.modules[900823].matches,true);assert.equal(result.inspection.modules[62229].matches,true);
+ assert.match(result.inspection.modules[900823].hash,/^[a-f0-9]{64}$/);
+ assert.equal(JSON.stringify(result).includes("SECRET_QUERY"),false);assert.equal(JSON.stringify(result).includes("private/path"),false);
+ assert.equal(h.ctx[KEY][0],vendor);
+});
 test("a page locking the global accessor does not drop or replace a chunk",{skip:!vendor},()=>{
   const h=mainHarness();h.load();h.run(`globalThis.${KEY}=[];
     Object.defineProperty(globalThis,'${KEY}',{...Object.getOwnPropertyDescriptor(globalThis,'${KEY}'),configurable:false});`);
