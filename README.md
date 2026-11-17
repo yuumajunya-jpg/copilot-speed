@@ -13,12 +13,15 @@ Copilot のタブで拡張機能を開き、「高速化を有効にする」を
 
 ## 動作
 
-- サイト単位で高速化をオン・オフできる。
+- `extension/manifest.json` の `host_permissions` を編集して、対象 URL パターンを追加・削除できる。
+- URL パターンごとに高速化をオン・オフできる。
 - 適用状態と、再読み込みが必要な場合の案内を表示する。
 - 対応するコードと一致しなければ、最適化を適用しない。
 - 遅延の計測、操作の記録、会話内容の保存、外部への送信は行わない。
 
-実行対象は `copilot.com`、`copilot.microsoft.com`、`m365.cloud.microsoft`。
+初期設定の対象は `copilot.com`、`copilot.microsoft.com`、`m365.cloud.microsoft`。
+それ以外のページは `host_permissions` に追加し、拡張機能とページを再読み込みする。
+詳しい編集例は [対象 URL の設定](INSTALL.md#対象-url-の設定) を参照。
 Microsoft 側の更新や実装の違いによって、適用できない場合がある。
 会社の Vivaldi と Microsoft 365 Copilot Chat は環境別の確認が必要。
 

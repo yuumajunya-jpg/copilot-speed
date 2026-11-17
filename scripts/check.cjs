@@ -14,8 +14,12 @@ function walk(dir) {
 }
 walk(root);
 for (const file of [manifest.background.service_worker, manifest.action.default_popup,
-  ...manifest.content_scripts.flatMap(s => s.js), "lib/sha256.js", "lib/registry.js", "main.js", "popup.css", "popup.js"]) {
+  ...(manifest.content_scripts ?? []).flatMap(s => s.js), "lib/targets.js", "lib/status.js", "content.js",
+  "lib/sha256.js", "lib/registry.js", "main.js", "popup.css", "popup.js"]) {
   if (!fs.existsSync(path.join(root,file))) throw new Error(`Missing: ${file}`);
 }
 if (manifest.host_permissions.some(host => host.includes("*://") || host.includes("<all_urls>"))) throw new Error("Overbroad hosts");
+const ctx = vm.createContext({URL});
+vm.runInContext(fs.readFileSync(path.join(root,"lib/targets.js"),"utf8"),ctx);
+ctx.CopilotSpeedTargets.normalizePatterns(manifest.host_permissions);
 console.log(`Manifest / ${count} JavaScript files: OK`);

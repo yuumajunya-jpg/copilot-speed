@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Copilot Speed",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Copilot の長い会話で発生する操作の遅延を軽減します。",
   "minimum_chrome_version": "111",
-  "permissions": ["storage", "scripting"],
+  "permissions": ["storage", "scripting", "activeTab"],
   "host_permissions": [
     "https://copilot.com/*",
     "https://copilot.microsoft.com/*",
@@ -12,15 +12,5 @@
   ],
   "background": { "service_worker": "background.js" },
   "action": { "default_title": "Copilot Speed", "default_popup": "popup.html" },
-  "content_scripts": [{
-    "matches": [
-      "https://copilot.com/*",
-      "https://copilot.microsoft.com/*",
-      "https://m365.cloud.microsoft/*"
-    ],
-    "js": ["lib/status.js", "content.js"],
-    "run_at": "document_start",
-    "all_frames": false
-  }],
   "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'none'" }
 }
