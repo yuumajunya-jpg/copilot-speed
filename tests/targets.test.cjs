@@ -24,7 +24,7 @@ test("invalid or unrestricted manifest patterns are rejected",()=>{
 test("legacy preferences migrate to default patterns and explicit empty targets remain empty",()=>{
  const migrated=t.settingsFrom({enabledOrigins:{"https://copilot.com":true}},defaults);
  assert.equal(migrated.enabledPatterns["https://copilot.com/*"],true);
- assert.equal(migrated.patterns.length,3);
+ assert.equal(migrated.patterns.length,defaults.length);
  assert.equal(t.settingsFrom({},[]).patterns.length,0);
  const custom=t.settingsFrom({enabledPatterns:{"https://copilot.cloud.chat/*":true}},["https://copilot.cloud.chat/*"]);
  assert.equal(t.findMatches(custom,"https://copilot.cloud.chat/thread").length,1);

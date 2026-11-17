@@ -5,7 +5,9 @@ const {chromium}=require("playwright-core");
 const root=path.resolve(__dirname,".."),out=path.join(root,"test-results");
 const vendorURL="https://res.public.onecdn.static.microsoft/midgard/versionless-v2/main.vendors.ed520e7e.js";
 const reference=path.join(root,"research/vendors.js"),hasReference=fs.existsSync(reference);
-let wrongVendor=false, changedScriptURL=false;
+const companyVendorURL="https://res.public.onecdn.static.microsoft/midgard/versionless-v2/main.vendors.80098539.js";
+const untrustedVendorURL="https://unverified.example.com/main.vendors.80098539.js";
+let wrongVendor=false, changedScriptURL=false, untrustedScriptURL=false;
 const fixture=`<!doctype html><html lang="ja"><meta charset="utf-8"><title>Copilot fixture</title><main><div role="log"></div><textarea aria-label="Message"></textarea><button aria-label="Send message">Send</button></main>
 <script src="${vendorURL}"></script><script>
 const input=document.querySelector('textarea');
@@ -21,8 +23,8 @@ async function harness(extensionPath,url){
   const errors=[];context.on("page",page=>page.on("pageerror",error=>errors.push(error.message)));
   await context.route("https://**/*",async route=>{
    const requestURL=route.request().url();
-   if(requestURL===vendorURL||requestURL.startsWith(vendorURL+"?"))await route.fulfill({contentType:"text/javascript",body:!wrongVendor&&hasReference?fs.readFileSync(reference,"utf8"):'(self.rspackChunk_1js_m365_copilot_app=self.rspackChunk_1js_m365_copilot_app||[]).push([[581856],{900823(){},62229(){}}]);'});
-   else if(["copilot.com","copilot.cloud.chat"].includes(new URL(requestURL).hostname))await route.fulfill({contentType:"text/html; charset=utf-8",body:fixture.replace(vendorURL,changedScriptURL?vendorURL+"?token=SCRIPT_PRIVATE_QUERY":vendorURL)});
+   if([vendorURL,companyVendorURL,untrustedVendorURL].some(url=>requestURL===url||requestURL.startsWith(url+"?")))await route.fulfill({contentType:"text/javascript",body:!wrongVendor&&hasReference?fs.readFileSync(reference,"utf8"):'(self.rspackChunk_1js_m365_copilot_app=self.rspackChunk_1js_m365_copilot_app||[]).push([[581856],{900823(){},62229(){}}]);'});
+   else if(["copilot.com","copilot.cloud.microsoft"].includes(new URL(requestURL).hostname))await route.fulfill({contentType:"text/html; charset=utf-8",body:fixture.replace(vendorURL,untrustedScriptURL?untrustedVendorURL+"?token=SCRIPT_PRIVATE_QUERY":changedScriptURL?companyVendorURL+"?token=SCRIPT_PRIVATE_QUERY":vendorURL)});
    else await route.abort();
   });
   const worker=context.serviceWorkers()[0]??await context.waitForEvent("serviceworker");
@@ -73,7 +75,11 @@ async function run(){
   await popup.locator("body").screenshot({path:path.join(out,"diagnosis.png")});
   wrongVendor=false;changedScriptURL=true;
   await page.goto("https://copilot.com/chat?conversation=PAGE_PRIVATE_QUERY#private");
-  await until(status,s=>s.main?.reason==="script-url-mismatch");
+  await until(status,s=>s.main?.state===(hasReference?"optimized":"unsupported"));
+  await popup.locator("#diagnose").click();await until(()=>popup.locator("#diagnosis-code").innerText(),text=>text.includes(hasReference?"OK":"D02"));
+  const updated=await popup.evaluate(()=>diagnosticReport);assert.equal(updated.optimizer.inspection.scriptFile,"main.vendors.80098539.js");
+  const updatedReport=JSON.stringify(updated);assert.doesNotMatch(updatedReport,/SCRIPT_PRIVATE_QUERY|PAGE_PRIVATE_QUERY/);
+  untrustedScriptURL=true;await page.reload();await until(status,s=>s.main?.reason==="script-url-mismatch");
   await popup.locator("#diagnose").click();await until(()=>popup.locator("#diagnosis-code").innerText(),text=>text.includes("D01"));
   const urlReport=JSON.stringify(await popup.evaluate(()=>diagnosticReport));assert.doesNotMatch(urlReport,/SCRIPT_PRIVATE_QUERY|PAGE_PRIVATE_QUERY/);
   await popup.locator("#optimization").click();await until(status,s=>!s.enabled);
@@ -84,10 +90,10 @@ async function run(){
  const configured=fs.mkdtempSync(path.join(out,"configured-extension-"));
  fs.cpSync(path.join(root,"extension"),configured,{recursive:true});
  const manifest=JSON.parse(fs.readFileSync(path.join(configured,"manifest.json"),"utf8"));
- const pattern="https://copilot.cloud.chat/chat/*";
+ const pattern="https://copilot.cloud.microsoft/chat/*";
  manifest.host_permissions=[pattern];fs.writeFileSync(path.join(configured,"manifest.json"),JSON.stringify(manifest,null,2));
- wrongVendor=false;changedScriptURL=false;
- const custom=await harness(configured,"https://copilot.cloud.chat/chat/thread");
+ wrongVendor=false;changedScriptURL=true;untrustedScriptURL=false;
+ const custom=await harness(configured,"https://copilot.cloud.microsoft/chat/thread");
  try{
   const{worker,page,popup,tabId,status,errors}=custom;
   await until(status,s=>s.enabled===false);
@@ -100,7 +106,10 @@ async function run(){
   await popup.locator("#optimization").click();
   await until(()=>worker.evaluate(()=>chrome.storage.local.get("enabledPatterns")),s=>s.enabledPatterns?.[pattern]===true);
   await page.reload();await until(status,s=>s.main?.state===(hasReference?"optimized":"unsupported"));
-  await page.goto("https://copilot.cloud.chat/other");await popup.evaluate(()=>refresh());
+  await popup.locator("#diagnose").click();
+  await until(()=>popup.locator("#diagnosis-code").innerText(),text=>text.includes(hasReference?"OK":"D02"));
+  assert.equal((await popup.evaluate(()=>diagnosticReport)).optimizer.inspection.scriptFile,"main.vendors.80098539.js");
+  await page.goto("https://copilot.cloud.microsoft/other");await popup.evaluate(()=>refresh());
   assert.equal(await popup.locator("#optimization").isDisabled(),true);
   assert.equal(await worker.evaluate(async id=>{try{await chrome.tabs.sendMessage(id,{type:"status"});return true;}catch{return false;}},tabId),false);
   assert.notEqual(await page.evaluate(()=>self.rspackChunk_1js_m365_copilot_app.find(chunk=>chunk[1][900823])[1][900823].name),"providerFactory");
@@ -110,7 +119,7 @@ async function run(){
   "extension loading","simple popup without URL settings UI","no diagnostics payload","normal click and Enter sending",
   "dynamic MAIN registration","reload application","factory mismatch non-application","user-facing status messages","disable and reload",
   "manifest-only custom host configuration","path-restricted detection and injection","toggle works before page script reload","outside path stays unmodified",
-  "on-demand diagnostic reason codes","factory diagnostic metadata","diagnostic JSON download","script URL diagnostic and query redaction"]};
+  "on-demand diagnostic reason codes","factory diagnostic metadata","diagnostic JSON download","script URL diagnostic and query redaction","changed vendor filename with identical hashes","company origin with updated vendor filename"]};
  fs.writeFileSync(path.join(out,"browser-test.json"),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});

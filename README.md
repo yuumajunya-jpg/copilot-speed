@@ -20,7 +20,7 @@ Copilot のタブで拡張機能を開き、「高速化を有効にする」を
 - 「診断」で適用できない理由を確認し、結果をローカルの JSON ファイルに保存できる。
 - 遅延の計測、操作の記録、会話内容の保存、外部への送信は行わない。
 
-初期設定の対象は `copilot.com`、`copilot.microsoft.com`、`m365.cloud.microsoft`。
+初期設定の対象は `copilot.com`、`copilot.microsoft.com`、`m365.cloud.microsoft`、`copilot.cloud.microsoft`。
 それ以外のページは `host_permissions` に追加し、拡張機能とページを再読み込みする。
 詳しい編集例は [対象 URL の設定](INSTALL.md#対象-url-の設定) を参照。
 適用できない場合は、[診断手順](INSTALL.md#適用できない場合の診断) を参照。

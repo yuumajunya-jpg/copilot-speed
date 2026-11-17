@@ -108,6 +108,6 @@ HTTPS の URL パターンを最大 50 件指定できます。
 | このページでは利用できません | Copilot は通常どおり利用できます。拡張機能の対応版があれば更新してください |
 | 再読み込みが必要です | ページを再読み込みします。繰り返す場合は拡張機能を無効にしてください |
 
-初期設定の対象は `copilot.com`、`copilot.microsoft.com`、`m365.cloud.microsoft` です。
+初期設定の対象は `copilot.com`、`copilot.microsoft.com`、`m365.cloud.microsoft`、`copilot.cloud.microsoft` です。
 Microsoft 側の更新や画面の違いによって、高速化を適用できない場合があります。
 企業の管理下で導入する場合は、その環境の拡張機能の導入方法に従ってください。

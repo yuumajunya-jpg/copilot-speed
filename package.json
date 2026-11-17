@@ -1,6 +1,6 @@
 {
   "name": "copilot-speed",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "description": "Copilot の長い会話の操作を軽くするブラウザ拡張機能",
   "scripts": {

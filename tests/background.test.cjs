@@ -4,7 +4,7 @@ const {source}=require("./helpers.cjs");
 function harness(){
  let listener,installed,removed,added;const scripts=new Map(),storage={};let failSave=false,failUpdate=false;
  const manifest=JSON.parse(source("manifest.json"));
- const permissions=new Set(["https://copilot.com/*","https://copilot.microsoft.com/*","https://m365.cloud.microsoft/*"]);
+ const permissions=new Set(manifest.host_permissions);
  let collected=0;
  const tabs=new Map([[1,{id:1,url:"https://copilot.com/chat?private=SECRET_QUERY"}]]);
  const chrome={runtime:{id:"test",getURL:file=>`chrome-extension://test/${file}`,getManifest:()=>structuredClone(manifest),

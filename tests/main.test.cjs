@@ -64,6 +64,21 @@ test("matching functions on a different script URL are left untouched",{skip:!ve
   assert.equal(h.status().reason,"script-url-mismatch");
   assert.equal(h.ctx[KEY][0],vendor);
 });
+test("company vendor filename and query can change when both factory hashes match",{skip:!vendor},()=>{
+  const h=mainHarness();h.load();h.run(`globalThis.${KEY}=[]`);
+  h.ctx.document.currentScript.src="https://res.public.onecdn.static.microsoft/midgard/versionless-v2/main.vendors.80098539.js?build=company";
+  h.ctx[KEY].push(vendor);
+  assert.equal(h.status().state,"optimized");
+  assert.equal(h.diagnose().inspection.scriptFile,"main.vendors.80098539.js");
+  assert.equal(h.diagnose().inspection.modules[900823].matches,true);
+  assert.equal(h.diagnose().inspection.modules[62229].matches,true);
+});
+test("a new vendor filename does not bypass the factory hash check",{skip:!vendor},()=>{
+  const h=mainHarness();h.load();h.run(`globalThis.${KEY}=[]`);
+  h.ctx.document.currentScript.src="https://res.public.onecdn.static.microsoft/midgard/versionless-v2/main.vendors.80098539.js";
+  const altered=[vendor[0],{...vendor[1],62229(){}}];h.ctx[KEY].push(altered);
+  assert.equal(h.status().reason,"factory-mismatch");assert.equal(h.ctx[KEY][0],altered);
+});
 test("one changed factory prevents either module from being replaced",{skip:!vendor},()=>{
   const h=mainHarness();h.load();h.run(`globalThis.${KEY}=[]`);
   const altered=[vendor[0],{...vendor[1],62229(){}}];h.ctx[KEY].push(altered);

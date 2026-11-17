@@ -145,11 +145,14 @@
     if (!(PROVIDER in modules) && !(CONSUMER in modules)) return chunk;
     const src = document.currentScript?.src;
     let scriptHost = null, scriptFile = null;
+    let supportedScript = false;
     try {
       const url = new URL(src);
       if (url.protocol === "https:") {
         scriptHost = url.hostname.slice(0,253);
         scriptFile = url.pathname.split("/").pop().replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,120);
+        supportedScript = url.origin === "https://res.public.onecdn.static.microsoft" &&
+          /^main\.vendors\.[a-f0-9]{8,64}\.js$/i.test(url.pathname.split("/").pop());
       }
     } catch { /* Missing or inline script. */ }
     inspection = { scriptHost, scriptFile, modules:{} };
@@ -159,7 +162,7 @@
       const hash = body !== null && body.length <= 8192 ? sha256(body) : null;
       inspection.modules[id] = { present, hash, matches:hash === EXPECTED[id] };
     }
-    if (src !== "https://res.public.onecdn.static.microsoft/midgard/versionless-v2/main.vendors.ed520e7e.js") {
+    if (!supportedScript) {
       finish("unsupported", "script-url-mismatch");
       return chunk;
     }
